@@ -81,13 +81,16 @@ On the client side, annotated utterances are received as JSON dictionaries. E.g.
 
 ```json
 {
-    'sender': 'MusicCRS', 
-    'message': {
-        'text': 'It was nice talking to you. Bye', 
-        'dialogue_acts': [
-            {'intent': 'EXIT', 'annotations': []}
-        ]
-    }
+  "sender": "MusicCRS",
+  "message": {
+    "text": "It was nice talking to you. Bye",
+    "dialogue_acts": [
+      {
+        "intent": "EXIT",
+        "annotations": []
+      }
+    ]
+  }
 }
 ```
 
@@ -111,20 +114,22 @@ utterance = AnnotatedUtterance(
 Then, the specific options will also be passed on as annotations:
 
 ```json
-'sender': 'MusicCRS', 
-    'message': {
-        'text': 'Here are some options: [...]', 
-        'dialogue_acts': [
-            {
-                'intent': 'OPTIONS', 
-                'annotations': [
-                    {'slot': 'option', 'value': 'Play some jazz music'}, 
-                    {'slot': 'option', 'value': 'Recommend me some pop songs'}, 
-                    {'slot': 'option', 'value': 'Create a workout playlist'},
-                ]
-            }
+{
+  "sender": "MusicCRS",
+  "message": {
+    "text": "Here are some options: [...]",
+    "dialogue_acts": [
+      {
+        "intent": "OPTIONS",
+        "annotations": [
+          {"slot": "option", "value": "Play some jazz music"},
+          {"slot": "option", "value": "Recommend me some pop songs"},
+          {"slot": "option", "value": "Create a workout playlist"}
         ]
-    }
+      }
+    ]
+  }
+}
 ```
 
 Similarly, you may mark up certain entities in the text, such as artists or tracks as annotations, and display them differently (e.g., link them) in the chat.
