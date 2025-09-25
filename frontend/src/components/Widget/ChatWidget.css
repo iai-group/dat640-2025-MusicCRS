@@ -1,0 +1,40 @@
+.chat-widget-container{
+  position: fixed;
+  bottom: 50px;
+  right: 50px;
+  width: 80px;
+  height: 80px;
+  z-index: 999;
+  overflow: visible;
+  transition: all 0.3s ease-in-out;
+}
+
+.chat-widget-box{
+opacity: 1;
+position: absolute;
+bottom : 100px;
+right: 0;
+width: 500px;
+min-height: 170px;
+transition: all 0.3s ease-in-out;
+}
+
+.chat-widget-container .chat-widget-content .card-body{
+ max-height: 450px;
+}
+
+.chat-widget-icon{
+text-align: center;
+width: 80px;
+height: 80px;
+border-radius: 50%;
+background: #fff;
+border: 1px solid #eee;
+box-shadow: 0 0 10px rgba(0,0,0,0.2);
+transition: all 0.3s ease;
+}
+
+.chat-widget-icon i{
+font-size: 40px;
+line-height: 75px;
+}
