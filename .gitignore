@@ -2,3 +2,8 @@
 __pycache__/
 data/
 frontend/node_modules/
+dialogue_export
+.vscode
+export.sh
+project.zip
+.env

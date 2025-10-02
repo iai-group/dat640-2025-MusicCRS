@@ -1,2 +1,3 @@
 dialoguekit
 ollama
+dotenv
