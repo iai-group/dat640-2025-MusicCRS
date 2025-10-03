@@ -5,6 +5,7 @@ import ChatBox from "./components/ChatBox/ChatBox";
 import LoginForm from "./components/LoginForm/LoginForm";
 import ChatWidget from "./components/Widget/ChatWidget";
 import ChatEmbedded from "./components/Embedded/ChatEmbedded";
+import { PlaylistProvider } from "./contexts/PlaylistContext";
 
 export default function App() {
   const { config } = useContext(ConfigContext);
@@ -12,8 +13,12 @@ export default function App() {
 
   const content = !user && config.useLogin ? <LoginForm /> : <ChatBox />;
   return config.useWidget ? (
-    <ChatWidget>{content}</ChatWidget>
+    <PlaylistProvider>
+      <ChatWidget>{content}</ChatWidget>
+    </PlaylistProvider>
   ) : (
-    <ChatEmbedded>{content}</ChatEmbedded>
+    <PlaylistProvider>
+      <ChatEmbedded>{content}</ChatEmbedded>
+    </PlaylistProvider>
   );
 }

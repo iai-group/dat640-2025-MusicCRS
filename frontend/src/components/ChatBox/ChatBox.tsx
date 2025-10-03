@@ -10,6 +10,7 @@ import React, {
 import QuickReplyButton from "../QuickReply";
 import { useSocket } from "../../contexts/SocketContext";
 import { UserContext } from "../../contexts/UserContext";
+import { PlaylistContext } from "../../contexts/PlaylistContext";
 import {
   MDBCard,
   MDBCardHeader,
@@ -21,9 +22,38 @@ import { AgentChatMessage, UserChatMessage } from "../ChatMessage";
 import { ChatMessage } from "../../types";
 import { ConfigContext } from "../../contexts/ConfigContext";
 
+function extractMessageText(message: any): string {
+  // Be liberal in what we accept: text could be at different paths depending on server/lib versions
+  const candidates = [
+    message?.text,
+    message?.utterance?.text,
+    message?.payload?.text,
+    message?.data?.text,
+    message?.message, // some backends do this
+  ];
+  const first = candidates.find((v) => typeof v === "string");
+  return typeof first === "string" ? first : "";
+}
+
+function extractFirstImageUrl(message: any): string | undefined {
+  // Current project format
+  const img1 =
+    message?.attachments
+      ?.find((a: any) => a?.type === "images")
+      ?.payload?.images?.[0];
+
+  // Fallbacks for other shapes if needed in future
+  const img2 = message?.payload?.images?.[0];
+  const img3 = message?.images?.[0];
+
+  return img1 || img2 || img3 || undefined;
+}
+
 export default function ChatBox() {
   const { config } = useContext(ConfigContext);
   const { user } = useContext(UserContext);
+  const { setState: setPlaylistState } = useContext(PlaylistContext);
+
   const {
     startConversation,
     sendMessage,
@@ -32,6 +62,7 @@ export default function ChatBox() {
     onRestart,
     giveFeedback,
   } = useSocket();
+
   const [chatMessages, setChatMessages] = useState<JSX.Element[]>([]);
   const [chatButtons, setChatButtons] = useState<JSX.Element[]>([]);
   const [inputValue, setInputValue] = useState<string>("");
@@ -71,38 +102,74 @@ export default function ChatBox() {
           message={message}
         />
       );
-      quickReply({ message: message });
+      quickReply({ message });
     },
     [chatMessagesRef, quickReply]
   );
 
   const handelMessage = useCallback(
     (message: ChatMessage) => {
-      if (!!message.text) {
-        const image_url = message.attachments?.find(
-          (attachment) => attachment.type === "images"
-        )?.payload.images?.[0];
+      // Debug raw inbound messages for diagnosis
+      // Open your browser DevTools (F12) -> Console to see these
+      // You can remove this once everything is stable.
+      // eslint-disable-next-line no-console
+      console.debug("[socket message]", message);
+
+      // 1) Update playlist panel if a playlist attachment is present
+      const plAttachment = (message as any).attachments?.find(
+        (a: any) => a?.type === "playlist"
+      );
+      if (plAttachment && (plAttachment as any).payload?.playlist) {
+        const playlist = (plAttachment as any).payload.playlist;
+        setPlaylistState((prev) => ({
+          current: playlist.name ?? prev.current,
+          playlists: { ...prev.playlists, [playlist.name]: playlist },
+        }));
+      }
+
+      // 2) Parse hidden marker in text: <!--PLAYLIST:{...}-->
+      let cleanText = extractMessageText(message);
+      if (cleanText.includes("<!--PLAYLIST:")) {
+        const re = /<!--PLAYLIST:(\{[\s\S]*?\})-->/;
+        const m = cleanText.match(re);
+        if (m) {
+          try {
+            const playlist = JSON.parse(m[1]);
+            setPlaylistState((prev) => ({
+              current: playlist.name ?? prev.current,
+              playlists: { ...prev.playlists, [playlist.name]: playlist },
+            }));
+          } catch {
+            // ignore JSON parse errors silently
+          }
+          cleanText = cleanText.replace(re, "").trim();
+        }
+      }
+
+      // 3) Render the chat message (strip marker; still show images/buttons below)
+      if (!!cleanText) {
+        const image_url = extractFirstImageUrl(message);
         updateMessages(
           <AgentChatMessage
             key={chatMessagesRef.current.length}
             feedback={config.useFeedback ? giveFeedback : null}
-            message={message.text}
+            message={cleanText}
             image_url={image_url}
           />
         );
       }
     },
-    [giveFeedback, chatMessagesRef, config]
+    [giveFeedback, chatMessagesRef, config, setPlaylistState]
   );
 
   const handleButtons = useCallback(
     (message: ChatMessage) => {
-      const buttons = message.attachments?.find(
-        (attachment) => attachment.type === "buttons"
-      )?.payload.buttons;
+      const buttons = (message as any).attachments?.find(
+        (attachment: any) => attachment?.type === "buttons"
+      )?.payload?.buttons;
       if (!!buttons && buttons.length > 0) {
         setChatButtons(
-          buttons.map((button, index) => {
+          buttons.map((button: any, index: number) => {
             return (
               <QuickReplyButton
                 key={index}
