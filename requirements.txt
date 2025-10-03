@@ -1,3 +1,5 @@
 dialoguekit
 ollama
 dotenv
+flask-cors
+pillow
