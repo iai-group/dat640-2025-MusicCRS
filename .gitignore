@@ -1,6 +1,7 @@
 .DS_Store
 __pycache__/
 data/
+mpd.v1/
 frontend/node_modules/
 dialogue_export
 .vscode
