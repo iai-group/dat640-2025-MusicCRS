@@ -20,6 +20,9 @@ export default function PlaylistPanel() {
   function removeTrack(uriOrIndex: string) {
     sendMessage({ message: `/remove ${uriOrIndex}` });
   }
+  function playTrack(index: number) {
+    sendMessage({ message: `/play ${index}` });
+  }
   function clearPlaylist() {
     sendMessage({ message: "/clear" });
   }
@@ -105,30 +108,70 @@ export default function PlaylistPanel() {
             key={t.track_uri}
             className="list-group-item d-flex justify-content-between align-items-center"
           >
-            <div className="me-2">
+            <div className="me-2 flex-grow-1">
               <div className="fw-bold">{t.artist} – {t.title}</div>
               <div className="text-muted small">{t.album}</div>
               <div className="text-muted small">{t.track_uri}</div>
             </div>
-            <button
-              className="btn btn-sm btn-outline-secondary"
-              title="Remove"
-              onClick={() => removeTrack(String(i + 1))}
-            >
-              <MDBIcon fas icon="trash" />
-            </button>
+            <div className="d-flex gap-1">
+              <button
+                className="btn btn-sm btn-success"
+                title="Play/Preview on Spotify"
+                onClick={() => playTrack(i + 1)}
+              >
+                <MDBIcon fas icon="play" />
+              </button>
+              <button
+                className="btn btn-sm btn-outline-secondary"
+                title="Remove"
+                onClick={() => removeTrack(String(i + 1))}
+              >
+                <MDBIcon fas icon="trash" />
+              </button>
+            </div>
           </li>
         ))}
       </ol>
 
       <div className="mt-3">
         <details>
-          <summary>How to use</summary>
-          <ul className="mt-2">
-            <li>Add songs with exact syntax <code>Artist: Title</code>.</li>
-            <li>Only songs from the database can be added.</li>
-            <li>You can also type commands in chat: <code>/add</code>, <code>/remove</code>, <code>/view</code>, <code>/clear</code>, <code>/create</code>, <code>/switch</code>, <code>/list</code>.</li>
-          </ul>
+          <summary className="fw-bold" style={{ cursor: "pointer" }}>How to use</summary>
+          <div className="mt-2">
+            <h6>Adding Songs</h6>
+            <ul className="small">
+              <li><code>/add [title]</code> – add by title (disambiguation if multiple matches)</li>
+              <li><code>/add [title] by [artist]</code> – natural language format</li>
+              <li><code>/add [artist] - [title]</code> – dash-separated format</li>
+              <li><code>/add [artist]: [title]</code> – colon-separated format</li>
+            </ul>
+            
+            <h6>Managing Playlists</h6>
+            <ul className="small">
+              <li><code>/remove [index|uri]</code> – remove by number or track URI</li>
+              <li><code>/view</code> – show current playlist</li>
+              <li><code>/clear</code> – remove all tracks</li>
+              <li><code>/create [name]</code> – create and switch to new playlist</li>
+              <li><code>/switch [name]</code> – switch to a different playlist</li>
+              <li><code>/list</code> – list all your playlists</li>
+            </ul>
+            
+            <h6>Playback & Info</h6>
+            <ul className="small">
+              <li><code>/play [number]</code> – get Spotify embed for track in playlist</li>
+              <li><code>/preview [artist/title]</code> – search and preview any track on Spotify</li>
+              <li><code>/stats</code> – show playlist statistics (popularity, genres, etc.)</li>
+            </ul>
+            
+            <h6>Questions & Search</h6>
+            <ul className="small">
+              <li><code>/ask [question]</code> – ask about tracks or artists</li>
+              <li>Examples: "what album is hey jude by the beatles on", "how many songs by queen"</li>
+            </ul>
+            
+            <p className="text-muted small mb-0">
+              <strong>Note:</strong> Songs must exist in the database. Use <code>/preview</code> to search Spotify for tracks not in the database.
+            </p>
+          </div>
         </details>
       </div>
     </div>

@@ -2,11 +2,37 @@
 
 This repository contains a starting package for the MusicCRS group project.
 
-It has some basic functionality to provide static responses (type `/info`), display options to the user to choose from (`/option`), prompt a large language model (`/ask_llm [prompt]`) and terminate the conversation (`/quit`).
+## ✨ Features
+
+### R2 Features (Completed)
+- ✅ Web-based chat interface
+- ✅ Add/remove songs from playlist
+- ✅ Multiple playlist support
+- ✅ Playlist cover art generation
+- ✅ View and manage playlists
+
+### R3 Features (Completed) - **10 Points**
+- ✅ **R3.1:** Add songs by title with smart disambiguation
+- ✅ **R3.2:** Intelligent ranking of search results
+- ✅ **R3.3:** Q&A system (8 question types for tracks & artists)
+- ✅ **R3.5:** Playlist statistics and insights
+- ✅ **R3.6:** Spotify playback infrastructure
+
+📖 See [R3_FEATURES.md](R3_FEATURES.md) for detailed documentation.
 
 ![Example](musiccrs_example.png)
 
-## Backend (Conversational Agent)
+## Quick Start
+
+### 1. Setup Environment
+
+Copy the example environment file and configure:
+```bash
+cp .env.example .env
+# Edit .env with your settings
+```
+
+### 2. Backend (Conversational Agent)
 
 The code for the conversational agent is found under the [musiccrs](musiccrs/) folder. It is based on the [DialogueKit](https://github.com/iai-group/DialogueKit) toolkit and assumes **Python 3.11**.
 
@@ -26,7 +52,7 @@ The server will be running on <http://127.0.0.1:5000>.
 
 Leave the terminal open to keep the server running. Open a new terminal window to set up and start the frontend.
 
-## Frontend
+### 3. Frontend
 
 The [frontend](frontend/) is based on [ChatWidget](https://github.com/iai-group/ChatWidget).
 
@@ -37,7 +63,8 @@ Install Node if you don't have it from [here](https://nodejs.org/en/download/).
 Then install all necessary packages:
 
 ```bash
-frontend/$ npm install
+cd frontend
+npm install
 ```
 
 This should generate `node_modules` folder.
@@ -54,6 +81,51 @@ This should automatically launch the client in your browser, and the client shou
 
 The page will reload if you make edits.
 You will also see any lint errors in the console.
+
+## 🎵 Available Commands
+
+### R3 Commands (New!)
+- `/add [title]` - Add song by title (with smart disambiguation)
+- `/ask [question]` - Ask questions about tracks and artists
+- `/stats` - View playlist statistics
+
+### R2 Commands
+- `/add [artist]: [title]` - Add song by exact artist and title
+- `/remove [index]` - Remove song by position
+- `/view` - Show current playlist
+- `/clear` - Clear playlist
+- `/create [name]` - Create new playlist
+- `/switch [name]` - Switch playlist
+- `/list` - List all playlists
+
+### System Commands
+- `/help` - Show all commands
+- `/info` - About MusicCRS
+- `/quit` - Exit
+
+📖 Full command reference: [R3_COMMANDS.md](R3_COMMANDS.md)
+
+### Example Usage
+
+```
+User: /add Yesterday
+Agent: I found 3 tracks. Please choose:
+       1. The Beatles – Yesterday
+       2. Imagine Dragons – Yesterday
+       3. Leona Lewis – Yesterday
+
+User: 1
+Agent: Added The Beatles – Yesterday.
+
+User: /ask how many songs by The Beatles are there
+Agent: There are 3 tracks by The Beatles in the database.
+
+User: /stats
+Agent: 📊 Statistics for default
+       • Total tracks: 1
+       • Unique artists: 1
+       ...
+```
 
 ## Structuring responses
 

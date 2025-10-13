@@ -1,5 +1,7 @@
 dialoguekit
 ollama
-dotenv
+python-dotenv
 flask-cors
 pillow
+requests
+spotipy

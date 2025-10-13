@@ -4,6 +4,8 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 import io
 import base64
+import requests
+from typing import Optional
 
 # Still save a copy under project/static/covers for debugging,
 # but we RETURN a data URL so the frontend doesn't depend on Flask static.
@@ -23,13 +25,69 @@ def _hash_colors(seed: str, n: int = 9) -> list[tuple[int, int, int]]:
         colors.append((r, g, b))
     return colors
 
-def generate_cover(user_id: str, playlist) -> str:
-    """Create a deterministic mosaic cover and return a **data URL**.
-    Also saves a PNG copy under static/covers for debugging."""
+
+def _fetch_album_image(url: str, size: int = 640) -> Optional[Image.Image]:
+    """Fetch and resize album artwork from Spotify."""
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        img = Image.open(io.BytesIO(response.content))
+        img = img.resize((size, size), Image.Resampling.LANCZOS)
+        return img
+    except Exception as e:
+        print(f"Error fetching album image: {e}")
+        return None
+
+
+def _create_spotify_style_cover(album_images: list[Image.Image], size: int = 640) -> Image.Image:
+    """
+    Create Spotify-style playlist cover based on number of album images.
+    - 1 image: full size
+    - 2 images: split vertically 50/50
+    - 3 images: top 50% one image, bottom 50% split horizontally
+    - 4+ images: 2x2 grid using first 4
+    """
+    canvas = Image.new("RGB", (size, size), (30, 30, 30))
+    
+    num_images = len(album_images)
+    
+    if num_images == 0:
+        return canvas
+    
+    elif num_images == 1:
+        # Single image fills entire cover
+        canvas.paste(album_images[0].resize((size, size), Image.Resampling.LANCZOS), (0, 0))
+    
+    elif num_images == 2:
+        # Two images split vertically
+        half = size // 2
+        canvas.paste(album_images[0].resize((half, size), Image.Resampling.LANCZOS), (0, 0))
+        canvas.paste(album_images[1].resize((half, size), Image.Resampling.LANCZOS), (half, 0))
+    
+    elif num_images == 3:
+        # Top: one image (50%)
+        # Bottom: two images (25% each)
+        half = size // 2
+        canvas.paste(album_images[0].resize((size, half), Image.Resampling.LANCZOS), (0, 0))
+        canvas.paste(album_images[1].resize((half, half), Image.Resampling.LANCZOS), (0, half))
+        canvas.paste(album_images[2].resize((half, half), Image.Resampling.LANCZOS), (half, half))
+    
+    else:  # 4 or more images
+        # 2x2 grid using first 4 images
+        half = size // 2
+        canvas.paste(album_images[0].resize((half, half), Image.Resampling.LANCZOS), (0, 0))
+        canvas.paste(album_images[1].resize((half, half), Image.Resampling.LANCZOS), (half, 0))
+        canvas.paste(album_images[2].resize((half, half), Image.Resampling.LANCZOS), (0, half))
+        canvas.paste(album_images[3].resize((half, half), Image.Resampling.LANCZOS), (half, half))
+    
+    return canvas
+
+
+def _create_fallback_cover(playlist, size: int = 640) -> Image.Image:
+    """Create a fallback mosaic cover when album images aren't available."""
     seed = playlist.name + "|" + "|".join([t.artist + ":" + t.title for t in playlist.tracks[:8]])
     colors = _hash_colors(seed, 9)
 
-    size = 640
     tile = size // 3
     img = Image.new("RGB", (size, size), (30, 30, 30))
     draw = ImageDraw.Draw(img)
@@ -40,31 +98,53 @@ def generate_cover(user_id: str, playlist) -> str:
         for x in range(3):
             draw.rectangle((x * tile, y * tile, (x + 1) * tile, (y + 1) * tile), fill=colors[idx % len(colors)])
             idx += 1
+    
+    return img
 
-    # bottom overlay + text
-    overlay = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    odraw = ImageDraw.Draw(overlay)
-    odraw.rectangle((0, size - 180, size, size), fill=(0, 0, 0, 150))
 
-    try:
-        font = ImageFont.truetype("DejaVuSans-Bold.ttf", 44)
-        small = ImageFont.truetype("DejaVuSans.ttf", 22)
-    except Exception:
-        font = None
-        small = None
-
-    title = (playlist.name or "playlist")[:40]
-    subtitle = f"{len(playlist.tracks)} tracks"
-    text_x = 20
-    text_y = size - 150
-    if font:
-        odraw.text((text_x, text_y), title, fill=(255, 255, 255, 255), font=font)
-        odraw.text((text_x, text_y + 60), subtitle, fill=(230, 230, 230, 255), font=small or font)
+def generate_cover(user_id: str, playlist) -> str:
+    """
+    Create a Spotify-style playlist cover using album artwork.
+    Falls back to color mosaic if Spotify images unavailable.
+    Returns a data URL.
+    """
+    size = 640
+    
+    # Try to get album images from Spotify for first 4 tracks
+    from .spotify_api import get_spotify_api
+    
+    album_images = []
+    spotify = get_spotify_api()
+    
+    if spotify and len(playlist.tracks) > 0:
+        # Get album artwork for first 4 unique tracks
+        seen_albums = set()
+        for track in playlist.tracks[:8]:  # Check up to 8 tracks to get 4 unique albums
+            if len(album_images) >= 4:
+                break
+            
+            details = spotify.get_track_details(track.artist, track.title)
+            if details and details.get("album_image"):
+                album_url = details["album_image"]
+                # Avoid duplicate albums
+                if album_url not in seen_albums:
+                    seen_albums.add(album_url)
+                    img = _fetch_album_image(album_url, size)
+                    if img:
+                        album_images.append(img)
+    
+    # Create cover based on available images
+    if album_images:
+        img = _create_spotify_style_cover(album_images, size)
     else:
-        odraw.text((text_x, text_y), title, fill=(255, 255, 255, 255))
-        odraw.text((text_x, text_y + 60), subtitle, fill=(230, 230, 230, 255))
+        # Fallback to color mosaic
+        img = _create_fallback_cover(playlist, size)
+    
+    # No text overlay - the album artwork grid is the cover
+    # This satisfies R2.6 as the cover is based on playlist songs
 
-    img = Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
+    # Convert to RGB for saving
+    img = img.convert("RGB")
 
     # Save a file copy (optional debug)
     safe_user = "".join(c for c in (user_id or "user") if c.isalnum() or c in ("-", "_")).strip("_")
