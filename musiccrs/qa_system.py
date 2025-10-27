@@ -16,9 +16,12 @@ from .playlist_db import (
 class QASystem:
     """Handles questions about tracks and artists."""
     
-    def __init__(self):
+    def __init__(self, llm_client=None, llm_model: str = None):
         # Compile regex patterns for different question types
         self._patterns = self._compile_patterns()
+        # Optional LLM for fallback when regex doesn't match
+        self._llm = llm_client
+        self._llm_model = llm_model
     
     def _compile_patterns(self):
         """Define patterns for different question types."""
@@ -67,22 +70,28 @@ class QASystem:
     def answer_question(self, question: str):
         """
         Parse a question and return an answer or disambiguation request.
+        Uses regex patterns first, falls back to LLM if no pattern matches.
+        
         Returns:
             - str: Direct answer text
             - dict: Disambiguation request with 'type': 'disambiguate', 'options': [...], 'context': {...}
-            - None: Question cannot be parsed
+            - None: Question cannot be parsed (even by LLM)
         """
         question = question.strip()
         
-        # Try track questions first
+        # Try track questions first (fast regex matching)
         result = self._try_track_questions(question)
         if result:
             return result
         
-        # Try artist questions
+        # Try artist questions (fast regex matching)
         result = self._try_artist_questions(question)
         if result:
             return result
+        
+        # Fall back to LLM if available and no regex pattern matched
+        if self._llm and self._llm_model:
+            return self._ask_llm_fallback(question)
         
         return None
     
@@ -399,3 +408,52 @@ class QASystem:
         
         artists_html = ", ".join([f"<b>{a}</b>" for a in similar])
         return f"Artists similar to <b>{artist}</b>: {artists_html}."
+    
+    def _ask_llm_fallback(self, question: str) -> str:
+        """
+        Use LLM as fallback when regex patterns don't match.
+        Provides context about the music database and asks LLM to help answer.
+        """
+        try:
+            # Build a context-aware prompt
+            system_context = """You are a helpful music assistant with access to a large music database.
+The database contains information about tracks, artists, albums, and playlists.
+
+Available question types you can help with:
+- Album information (e.g., "What album is [track] by [artist] on?")
+- Artist information (e.g., "Who sings [track]?")
+- Track existence (e.g., "Do you have [track] by [artist]?")
+- Track details (e.g., "Tell me about [track] by [artist]")
+- Artist track counts (e.g., "How many songs by [artist]?")
+- Artist albums (e.g., "What albums does [artist] have?")
+- Top tracks (e.g., "What are the best songs by [artist]?")
+- Similar artists (e.g., "Who sounds like [artist]?")
+
+If the question is about music tracks or artists, try to extract the key information and provide a helpful response.
+If the question is unclear or not about music, politely explain what you can help with.
+Keep responses concise (2-3 sentences max)."""
+
+            prompt = f"""{system_context}
+
+User question: {question}
+
+Your response:"""
+
+            llm_response = self._llm.generate(
+                model=self._llm_model,
+                prompt=prompt,
+                options={
+                    "stream": False,
+                    "temperature": 0.7,
+                    "max_tokens": 150,
+                },
+            )
+            
+            response_text = llm_response.get('response', '').strip()
+            
+            # Add a note that this was an LLM-generated answer
+            return f"{response_text}<br/><br/><small><i>💡 AI-generated response (no exact pattern match found)</i></small>"
+        
+        except Exception as e:
+            # If LLM fails, return a helpful error
+            return f"I couldn't understand that question. Try asking about tracks (e.g., 'what album is hey jude by the beatles on?') or artists (e.g., 'how many songs by queen?'). <small>LLM error: {str(e)}</small>"

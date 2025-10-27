@@ -57,7 +57,7 @@ def build_from_mpd_folder(mpd_dir: Path, conn: Optional[sqlite3.Connection] = No
                 payload = json.load(f)
         except Exception:
             continue
-        # Two known variants: MPD playlists list, or plain list of tracks (like our sample)
+        # Two known variants: MPD playlists list, or plain list of tracks
         items = []
         if isinstance(payload, dict) and "playlists" in payload:
             for pl in payload["playlists"]:
@@ -160,9 +160,15 @@ def search_by_title(title: str, limit: int = 20, conn: Optional[sqlite3.Connecti
 
 def search_by_artist_title_fuzzy(artist: str, title: str, limit: int = 10, conn: Optional[sqlite3.Connection] = None):
     """
-    Fuzzy search for tracks by artist and title using LIKE matching.
-    Useful when exact match fails but user knows approximate title.
-    Returns list of (track_uri, artist, title, album).
+    Intelligent fuzzy search for tracks by artist and title.
+    Handles common patterns like:
+    - Exact artist, fuzzy title (e.g., "smells like teen spirit" matches "Smells Like Teen Spirit - Remastered")
+    - Fuzzy artist name (e.g., "nirvana" matches "Nirvana")
+    
+    Returns results ranked by:
+    1. Artist name match quality (exact > fuzzy)
+    2. Title match quality (exact > starts with > contains)
+    3. MPD popularity
     """
     artist = (artist or "").strip()
     title = (title or "").strip()
@@ -174,111 +180,148 @@ def search_by_artist_title_fuzzy(artist: str, title: str, limit: int = 10, conn:
         conn = ensure_db()
         close = True
     
-    # Try partial match with LIKE - title contains the search term
+    artist_lower = artist.lower()
+    title_lower = title.lower()
+    
+    # Query for multiple match types and rank them
+    # Priority: exact artist match, then fuzzy artist match
+    # For title: exact > starts with > contains
+    query = """
+    SELECT track_uri, artist, title, album,
+        CASE 
+            WHEN lower(artist) = ? THEN 0  -- Exact artist match
+            WHEN lower(artist) LIKE ? THEN 1  -- Fuzzy artist match
+            ELSE 2
+        END as artist_priority,
+        CASE
+            WHEN lower(title) = ? THEN 0  -- Exact title
+            WHEN lower(title) LIKE ? THEN 1  -- Title starts with search
+            WHEN lower(title) LIKE ? THEN 2  -- Title contains search
+            ELSE 3
+        END as title_priority,
+        length(title) as title_len
+    FROM tracks 
+    WHERE (lower(artist) = ? OR lower(artist) LIKE ?)
+      AND (lower(title) = ? OR lower(title) LIKE ?)
+    ORDER BY artist_priority ASC, title_priority ASC, title_len ASC
+    LIMIT ?
+    """
+    
     rows = conn.execute(
-        "SELECT track_uri, artist, title, album FROM tracks "
-        "WHERE lower(artist)=? AND lower(title) LIKE ? "
-        "ORDER BY length(title) ASC LIMIT ?",
-        (artist.lower(), f"%{title.lower()}%", limit),
+        query,
+        (
+            artist_lower,  # exact artist
+            f"%{artist_lower}%",  # fuzzy artist
+            title_lower,  # exact title
+            f"{title_lower}%",  # title starts with
+            f"%{title_lower}%",  # title contains
+            artist_lower,  # WHERE exact artist
+            f"%{artist_lower}%",  # WHERE fuzzy artist  
+            title_lower,  # WHERE exact title
+            f"%{title_lower}%",  # WHERE title fuzzy
+            limit
+        ),
     ).fetchall()
     
     if close:
         conn.close()
-    return rows
+    
+    # Remove the priority and length columns from results
+    return [(uri, artist, title, album) for uri, artist, title, album, _, _, _ in rows]
+
 
 # ========== R3.2: Popularity-based ranking ==========
 def get_track_popularity(track_uri: str, mpd_dir: Optional[Path] = None, conn: Optional[sqlite3.Connection] = None) -> int:
-    """Count how many times a track appears in MPD playlists (approximation from loaded data)."""
-    # For now, return a simple heuristic. Full implementation would scan MPD files.
-    # We'll use a placeholder that can be enhanced later.
-    return 0
+    """Count how many times a track appears in MPD playlists (local database popularity)."""
+    close = False
+    if conn is None:
+        conn = ensure_db()
+        close = True
+    
+    try:
+        # Count occurrences in the tracks table (tracks that appear in loaded playlists)
+        # This uses the MPD database to estimate popularity
+        result = conn.execute(
+            "SELECT COUNT(*) FROM tracks WHERE track_uri = ?",
+            (track_uri,)
+        ).fetchone()
+        count = result[0] if result else 0
+        if close:
+            conn.close()
+        return count
+    except Exception:
+        if close:
+            conn.close()
+        return 0
 
 def search_by_title_ranked(title: str, existing_artists: list[str] = None, limit: int = 20, conn: Optional[sqlite3.Connection] = None):
     """
-    Search for tracks by title and rank them:
+    Search for tracks by title and rank them intelligently:
     1. Tracks by artists already in the playlist (if existing_artists provided)
-    2. By Spotify popularity (if available)
-    3. Then alphabetically by artist
+    2. By MPD database popularity (how often track appears in playlists)
+    3. By artist name match quality
+    4. Alphabetically as tiebreaker
     
-    Performance optimization: Fetches 2x limit, gets Spotify data for diverse subset.
+    Spotify is used as optional enhancement only - system works fully without it.
     """
-    # Strategy: Get more results but sample intelligently for Spotify API calls
-    # This balances finding variations (like "Hey Jude - Remastered") with performance
-    initial_limit = min(limit * 3, 60)  # Get 3x requested, max 60
+    # Get initial results
+    initial_limit = min(limit * 3, 60)  # Get 3x requested, max 60 for variety
     results = search_by_title(title, limit=initial_limit, conn=conn)
     if not results:
         return []
     
     existing_artists = [a.lower() for a in (existing_artists or [])]
     
-    # Try to get Spotify popularity for ranking (R3.2 enhancement)
+    # Get MPD popularity for all tracks (LOCAL, fast, always available)
+    results_with_data = []
+    for uri, artist, track_title, album in results:
+        mpd_popularity = get_track_popularity(uri, conn=conn)
+        results_with_data.append((uri, artist, track_title, album, mpd_popularity))
+    
+    # Optional: Try to enhance with Spotify popularity if available
+    # This is purely optional - system works without it
+    spotify_popularity = {}
     try:
         from .spotify_api import get_spotify_api
         spotify = get_spotify_api()
         if spotify:
-            # PERFORMANCE OPTIMIZATION: Limit Spotify API calls to stay under 3-5 second target
-            # Strategy: Query Spotify for a strategic subset, infer for the rest
+            # Only query Spotify for top candidates to avoid slowdown
+            MAX_SPOTIFY_CALLS = 5  # Very conservative - most ranking is MPD-based
             
-            MAX_SPOTIFY_CALLS = 12  # Limit API calls for performance (3-5 second target with network variance)
+            # Get Spotify data for most promising candidates (by MPD popularity)
+            top_by_mpd = sorted(results_with_data, key=lambda x: x[4], reverse=True)[:MAX_SPOTIFY_CALLS]
             
-            # Group results by artist
-            artist_groups = {}
-            for uri, artist, track_title, album in results:
-                key = artist.lower()
-                if key not in artist_groups:
-                    artist_groups[key] = []
-                artist_groups[key].append((uri, artist, track_title, album))
-            
-            # Prioritize which artists to query:
-            # 1. Artists already in playlist
-            # 2. Common/well-known artists (more tracks = more popular)
-            # 3. Take first N up to MAX_SPOTIFY_CALLS
-            artists_to_query = []
-            
-            # First: existing artists
-            for artist_key in existing_artists:
-                if artist_key in artist_groups and artist_key not in artists_to_query:
-                    artists_to_query.append(artist_key)
-            
-            # Second: artists with most tracks (likely more popular)
-            sorted_by_count = sorted(artist_groups.items(), key=lambda x: len(x[1]), reverse=True)
-            for artist_key, tracks in sorted_by_count:
-                if artist_key not in artists_to_query:
-                    artists_to_query.append(artist_key)
-                if len(artists_to_query) >= MAX_SPOTIFY_CALLS:
-                    break
-            
-            # Get popularity for selected artists
-            artist_popularity = {}
-            for artist_key in artists_to_query:
-                tracks = artist_groups[artist_key]
-                uri, artist, track_title, album = tracks[0]
-                popularity = spotify.get_track_popularity(artist, track_title)
-                artist_popularity[artist_key] = popularity
-            
-            # For unqueried artists, use a default low popularity
-            DEFAULT_POPULARITY = 10
-            
-            # Apply popularity to all tracks
-            results_with_popularity = []
-            for uri, artist, track_title, album in results:
-                popularity = artist_popularity.get(artist.lower(), DEFAULT_POPULARITY)
-                results_with_popularity.append((uri, artist, track_title, album, popularity))
-            
-            # Sort: prioritize existing artists, then by popularity, then alphabetically
-            def rank_key(row):
-                artist = row[1].lower()
-                popularity = row[4]
-                # Artists in playlist get priority (0), others get 1
-                priority = 0 if artist in existing_artists else 1
-                # Higher popularity = lower sort key (negative to sort descending)
-                return (priority, -popularity, artist, row[2])
-            
-            ranked = sorted(results_with_popularity, key=rank_key)
-            # Remove popularity from output and apply final limit
-            return [(uri, artist, title, album) for uri, artist, title, album, _ in ranked[:limit]]
-    except Exception as e:
-        print(f"Warning: Could not use Spotify for ranking: {e}")
+            for uri, artist, track_title, album, mpd_pop in top_by_mpd:
+                try:
+                    pop = spotify.get_track_popularity(artist, track_title)
+                    if pop > 0:  # Only cache successful lookups
+                        spotify_popularity[uri] = pop
+                except Exception:
+                    pass  # Silently ignore per-track failures
+    except Exception:
+        pass  # Spotify entirely optional - don't print errors
+    
+    # Apply final popularity scores combining MPD + optional Spotify
+    final_results = []
+    for uri, artist, track_title, album, mpd_pop in results_with_data:
+        # MPD popularity is primary (0-N occurrences)
+        # Spotify popularity is bonus enhancement (0-100) - scale down to avoid dominance
+        spotify_pop = spotify_popularity.get(uri, 0)
+        combined_popularity = mpd_pop * 10 + spotify_pop  # Weight MPD 10x more than Spotify
+        final_results.append((uri, artist, track_title, album, combined_popularity))
+    
+    # Sort: prioritize existing artists, then by combined popularity, then alphabetically
+    def rank_key(row):
+        artist = row[1].lower()
+        popularity = row[4]
+        # Artists in playlist get priority (0), others get 1
+        priority = 0 if artist in existing_artists else 1
+        # Higher popularity = lower sort key (negative to sort descending)
+        return (priority, -popularity, artist, row[2])
+    
+    ranked = sorted(final_results, key=rank_key)
+    # Remove popularity from output and apply final limit
+    return [(uri, artist, title, album) for uri, artist, title, album, _ in ranked[:limit]]
     
     # Fallback: original ranking without Spotify
     def rank_key(row):

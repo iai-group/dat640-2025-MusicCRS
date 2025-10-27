@@ -81,7 +81,8 @@ class MusicCRS(Agent):
         self._user_key = "default"
 
         # --- R3 state ---
-        self._qa = QASystem()
+        # Pass LLM to QA system for hybrid approach (regex + LLM fallback)
+        self._qa = QASystem(llm_client=self._llm, llm_model=OLLAMA_MODEL)
         self._pending_disambiguation = None  # Stores disambiguation state: {'type': 'add'|'qa', 'options': [...], 'context': {...}}
 
         # Pre-compiled command regexes
@@ -219,8 +220,8 @@ class MusicCRS(Agent):
                 # If artist and title are parsed, search by both
                 if artist and title:
                     # Try exact match first
-                    from .playlist_db import get_track
-                    track_data = get_track(artist, title)
+                    from .playlist_db import search_by_artist_title
+                    track_data = search_by_artist_title(artist, title)
                     if track_data:
                         track = self._ps.add_by_uri(self._user_key, track_data[0])
                         self._send_playlist_text(f"Added <b>{track.artist} – {track.title}</b>.")
@@ -354,7 +355,7 @@ class MusicCRS(Agent):
             "<li><code>/create [name]</code> &mdash; create and switch to a new playlist</li>"
             "<li><code>/switch [name]</code> &mdash; switch current playlist</li>"
             "<li><code>/list</code> &mdash; list your playlists</li>"
-            "<li><code>/ask [question]</code> &mdash; ask about tracks or artists</li>"
+            "<li><code>/ask [question]</code> &mdash; ask about tracks or artists (AI-powered with fallback)</li>"
             "<li><code>/stats</code> &mdash; show playlist statistics</li>"
             "<li><code>/play [number]</code> &mdash; get Spotify link for a track in your playlist</li>"
             "<li><code>/preview [artist/title]</code> &mdash; search for a track preview</li>"

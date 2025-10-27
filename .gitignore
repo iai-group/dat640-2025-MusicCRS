@@ -9,3 +9,5 @@ export.sh
 project.zip
 .env
 static/
+# Ignore package lock --- IGNORE ---
+package-lock.json

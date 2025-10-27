@@ -103,8 +103,6 @@ You will also see any lint errors in the console.
 - `/info` - About MusicCRS
 - `/quit` - Exit
 
-📖 Full command reference: [R3_COMMANDS.md](R3_COMMANDS.md)
-
 ### Example Usage
 
 ```
