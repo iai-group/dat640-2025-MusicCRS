@@ -29,3 +29,5 @@ The simulator can be run with the following flags:
 
   * `--no-upload`: Disables uploading the dialogue to the simulation server. This is useful for local testing and debugging.
   * `--check-uploads`: Checks the upload status of the simulations. This allows you to quickly verify that all simulations have been successfully uploaded.
+
+You can run and upload simulations as many times as you like, but **only the last upload will be considered in the evaluation**.
