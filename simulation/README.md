@@ -4,10 +4,28 @@ This folder contains the user simulator for requirement set R6.
 
 In principle, there should be no need to make changes to your MusicCRS to be able to interact with the simulator. However, keep in mind that the simulator only considers the `text` and `dialogue_acts` fields of the messages sent by MusicCRS, i.e., it is not aware of any advanced features your UI might support.
 
-The current code is a minimalistic version that connects to MusicCRS (R6.1) and supports adding tracks to a playlist (partial fulfillment of R6.2). The complete simulator is planned to be released by Nov 7.
+The simulator conducts multiple dialogues of varying complexity with the MusicCRS, ranging from executing a fixed sequences of commands to dynamic natural language interactions. The simulator automatically uploads the completed dialogues to a server, and these uploaded dialogues will be the basis for scoring your MusicCRS for R6. The results will only be released after manually checking the uploaded results.
 
-To run the simulator, first make sure that MusicCRS is running on <http://127.0.0.1:5000>. The frontend does not need to be started. Start the simulator from the root folder of the repo by running `python simulation/simulator.py`.
+The current simulator is not the final version, but provides all the critical bits for you to be able to check if your MusicCRS can communicate with it and whether you'll be able to submit R6.
 
-The current version simply sends a predefined sequence of messages to add some tracks to a playlist. The final simulator will use and LLM for more dynamic interactions and will require you to have a key to the Ollama service on uix.uis.no.
+## ⚙️ Configuration
 
-For the submission of R6, you'll need to download the latest version of the simulator, perform minimalistic configuration, and run it on your local machine together with your MusicCRS.
+Before launching the simulator, you need to configure it by setting the MusicCRS server URL (<http://127.0.0.1:5000> by default), group ID, Ollama API key, and the mapping of intents to the specific commands your MusicCRS recognizes in [config.py](config.py).
+
+  * The final version of the simulator will require you to have a key to the Ollama service on uix.uis.no. Don't leave this to the very last minute.
+  * **Crucially, you're not allowed to make changes to any other parts of the simulation code outside config.py.**
+
+## ▶️ Running the simulator
+
+You need to run the simulator on your local machine together with your MusicCRS.
+
+First, make sure that MusicCRS is running on the URL specified in config.py (`MUSICCRS_SERVER_URL`). The frontend does not need to be started.
+
+Run the simulator from the root folder of the repo by running `python simulation/simulator.py`.
+
+It'll first perform some configuration checks and then will run a sequence of simulations.
+
+The simulator can be run with the following flags:
+
+  * `--no-upload`: Disables uploading the dialogue to the simulation server. This is useful for local testing and debugging.
+  * `--check-uploads`: Checks the upload status of the simulations. This allows you to quickly verify that all simulations have been successfully uploaded.
