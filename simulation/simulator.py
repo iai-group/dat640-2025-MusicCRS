@@ -534,13 +534,15 @@ if __name__ == "__main__":
                 colorama.Style.BRIGHT
                 + f"\n▶️ Simulation {sim_id}: {simulation['name']}\n"
             )
+            simuser_id = sim_id
             if simulation.get("use_persona", False):
                 simulation["persona"] = personas.pop()
+                simuser_id += f"-P{simulation['persona']['id']}"
             client = SimulatorClient(
                 config.MUSICCRS_SERVER_URL,
                 llm=llm,
                 agent_id=f"MusicCRS-{config.GROUP_ID}",
-                simulated_user_id=f"SimUser-{sim_id}",
+                simulated_user_id=f"SimUser-{simuser_id}",
                 simulation_config=simulation,
                 upload=not args.no_upload,
             )
