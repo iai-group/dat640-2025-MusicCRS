@@ -537,7 +537,7 @@ if __name__ == "__main__":
             simuser_id = sim_id
             if simulation.get("use_persona", False):
                 simulation["persona"] = personas.pop()
-                simuser_id += f"-P{simulation['persona']['id']}"
+                simuser_id += f"-P{simulation['persona']['persona_id']}"
             client = SimulatorClient(
                 config.MUSICCRS_SERVER_URL,
                 llm=llm,
