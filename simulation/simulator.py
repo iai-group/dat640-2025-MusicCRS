@@ -1,7 +1,6 @@
 """Simulator client to interact with MusicCRS server.
 
 It connects to the MusicCRS server specified in config.py.
-The current version is not final. It includes simulations based on a predefined sequence of messages, but dynamic interactions using LLMs remain to be added.
 
 The simulator can be run with the following flags:
   --no-upload: Disables uploading the dialogue to the simulation server.
