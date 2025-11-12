@@ -4,16 +4,16 @@ This folder contains the user simulator for requirement set R6.
 
 In principle, there should be no need to make changes to your MusicCRS to be able to interact with the simulator. However, keep in mind that the simulator only considers the `text` and `dialogue_acts` fields of the messages sent by MusicCRS, i.e., it is not aware of any advanced features your UI might support.
 
-The simulator conducts multiple dialogues of varying complexity with the MusicCRS, ranging from executing a fixed sequences of commands to dynamic natural language interactions. The simulator automatically uploads the completed dialogues to a server, and these uploaded dialogues will be the basis for scoring your MusicCRS for R6. The results will only be released after manually checking the uploaded results.
-
-The current simulator is not the final version, but provides all the critical bits for you to be able to check if your MusicCRS can communicate with it and whether you'll be able to submit R6.
+The simulator conducts multiple dialogues of varying complexity with the MusicCRS, ranging from executing a fixed sequences of commands to dynamic natural language interactions based on user personas. The simulator automatically uploads the completed dialogues to a server, and these uploaded dialogues will be the basis for scoring your MusicCRS for R6. The results will only be released after manually checking the uploaded results.
 
 ## ⚙️ Configuration
 
-Before launching the simulator, you need to configure it by setting the MusicCRS server URL (<http://127.0.0.1:5000> by default), group ID, Ollama API key, and the mapping of intents to the specific commands your MusicCRS recognizes in [config.py](config.py).
+Before launching the simulator, you need to configure it by setting the MusicCRS server URL (<http://127.0.0.1:5000> by default), group ID, upload token, Ollama API key, and the mapping of intents to the specific commands your MusicCRS recognizes in [config.py](config.py).
 
+  * The UPLOAD_TOKEN is unique for each group and has been sent to you by email.
   * The final version of the simulator will require you to have a key to the Ollama service on uix.uis.no. Don't leave this to the very last minute.
-  * **Crucially, you're not allowed to make changes to any other parts of the simulation code outside config.py.**
+  * Make sure you have all the Python packages installed that are listed in [requirements.txt](../requirements.txt).
+  * **Crucially, you're not allowed to make changes to any other parts of the simulation code outside config.py.** This is being checked and the simulator will not run if changes are made to the source code.
 
 ## ▶️ Running the simulator
 
@@ -31,3 +31,5 @@ The simulator can be run with the following flags:
   * `--check-uploads`: Checks the upload status of the simulations. This allows you to quickly verify that all simulations have been successfully uploaded.
 
 You can run and upload simulations as many times as you like, but **only the last upload will be considered in the evaluation**.
+
+For non-deterministic scenarios (i.e., those involving user personas) the simulations are repeated multiple times and the evaluation will consider the best performing among those.

@@ -3,6 +3,7 @@
 MUSICCRS_SERVER_URL = "http://127.0.0.1:5000"  # URL of your MusicCRS agent
 
 GROUP_ID = 0  # TODO: Set to your assigned group ID (int)
+UPLOAD_TOKEN = "your-group-upload-token"  # TODO: Set to your upload token (str)
 OLLAMA_API_KEY = "my-api-key"  # TODO: Set to your Ollama API key (str)
 
 # TODO: Configure the commands recognized by your MusicCRS agent.
